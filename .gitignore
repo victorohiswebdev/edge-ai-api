@@ -1,0 +1,83 @@
+# ─────────────────────────────────────────────
+# 🐍 Python / Virtual Environments
+# ─────────────────────────────────────────────
+venv/
+.venv/
+env/
+.venv.bak/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+
+# ─────────────────────────────────────────────
+# 🔐 Environment Variables & Secrets
+# ─────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets.json
+
+# ─────────────────────────────────────────────
+# 💻 IDE / Editor Settings
+# ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ─────────────────────────────────────────────
+# 🪟 Windows-Specific
+# ─────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ─────────────────────────────────────────────
+# 🍎 macOS-Specific (in case you switch)
+# ─────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ─────────────────────────────────────────────
+# 🗂️ Build / Distribution / Cache
+# ─────────────────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ─────────────────────────────────────────────
+# 📊 Logs & Data (optional — customize as needed)
+# ─────────────────────────────────────────────
+*.log
+logs/
+data/raw/
+data/processed/
+*.sqlite
+*.db
+
+# ─────────────────────────────────────────────
+# ✅ What TO Commit (for reference)
+# ─────────────────────────────────────────────
+# ✔️ requirements.txt
+# ✔️ *.py (your source code)
+# ✔️ README.md, LICENSE
+# ✔️ .gitignore (this file!)
+# ✔️ config templates (e.g., .env.example)
