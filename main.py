@@ -5,12 +5,22 @@ Serves sensor data from the SQLite database (written by the Pi's data_logger)
 to the Next.js frontend via REST endpoints.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
 from config import settings
 from routes import sensors, ingest
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize the database on startup, clean up on shutdown."""
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="Edge AI Farm API",
@@ -20,6 +30,7 @@ app = FastAPI(
     ),
     version="1.0.0",
     docs_url="/docs",
+    lifespan=lifespan,
 )
 
 # ── CORS — Allow the Next.js dashboard to call the API ──
@@ -30,13 +41,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ── Startup ──
-@app.on_event("startup")
-def on_startup():
-    """Ensure the database and tables exist before handling requests."""
-    init_db()
 
 
 # ── Routes ──

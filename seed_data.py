@@ -13,6 +13,8 @@ import random
 import math
 from datetime import datetime, timedelta
 
+from database import init_db
+
 DB_PATH = "farm_data.db"
 HOURS = 48             # Generate 48 hours of history
 INTERVAL_MIN = 5       # One reading every 5 minutes
@@ -25,6 +27,9 @@ BASE_MOISTURE = [55, 45, 60]  # Zone baselines (Zone 2 is drier = stress zone)
 
 
 def seed():
+    # Ensure the table exists before we try to write to it
+    init_db()
+
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
