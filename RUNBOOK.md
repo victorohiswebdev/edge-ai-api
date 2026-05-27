@@ -1,4 +1,4 @@
-# Edge AI Farm — Start-Up Workflow
+# Edge AI Farm — Operational Runbook
 
 ## System Architecture
 
@@ -28,6 +28,77 @@ When the Raspberry Pi powers on, three systemd services start automatically:
 | 3 | `edge-ai-logger` | Starts Arduino serial reader + DB writer | Network up + Arduino on USB |
 
 **Boot timeline:** All three services start within ~30 seconds of power-on. The dashboard uses a **synthetic data fallback** — if the API isn't ready yet, the dashboard shows simulated data and automatically switches to live once the API responds.
+
+## Service Management
+
+### Status — check if running
+
+```bash
+# Single service
+sudo systemctl status edge-ai-api
+
+# All three at once
+sudo systemctl status edge-ai-api edge-ai-dashboard edge-ai-logger
+```
+
+### Stop — graceful shutdown (SIGTERM)
+
+```bash
+# One service
+sudo systemctl stop edge-ai-logger
+
+# All at once
+sudo systemctl stop edge-ai-api edge-ai-dashboard edge-ai-logger
+```
+
+### Start — bring back up
+
+```bash
+# One service
+sudo systemctl start edge-ai-dashboard
+
+# All at once
+sudo systemctl start edge-ai-api edge-ai-dashboard edge-ai-logger
+```
+
+### Restart — stop then start
+
+```bash
+sudo systemctl restart edge-ai-api
+```
+
+### Kill — force stop a stuck service (SIGKILL)
+
+Use this when `stop` doesn't work (process ignores SIGTERM):
+
+```bash
+sudo systemctl kill -s SIGKILL edge-ai-api
+
+# Shorthand
+sudo systemctl kill -s KILL edge-ai-logger
+```
+
+After killing, start the service normally:
+
+```bash
+sudo systemctl start edge-ai-api
+```
+
+### Disable — prevent auto-start on boot
+
+```bash
+# Won't start on next reboot (but still running now)
+sudo systemctl disable edge-ai-logger
+
+# Stop now AND prevent on boot
+sudo systemctl disable --now edge-ai-logger
+```
+
+### Enable — restore auto-start on boot
+
+```bash
+sudo systemctl enable --now edge-ai-logger
+```
 
 ## Checking System Status
 
@@ -67,19 +138,66 @@ The header of the dashboard shows a badge indicating the current data pipeline s
 
 The dashboard polls the API and system status every 10 seconds. The badge updates automatically when the pipeline state changes.
 
-## Service Recovery
+## Troubleshooting
+
+### View crash logs
 
 ```bash
-# Restart a single service
-sudo systemctl restart edge-ai-api
-
-# Restart all services (in order)
-sudo systemctl restart edge-ai-api
-sleep 3
-sudo systemctl restart edge-ai-dashboard
-
-# View crash logs
+# Last 30 lines of errors
 sudo journalctl -u edge-ai-api -p err --no-pager -n 30
+
+# Full log for a specific service
+sudo journalctl -u edge-ai-logger --no-pager -n 50
+
+# Live tail (follow new logs)
+sudo journalctl -u edge-ai-api -f
+```
+
+### Run a service manually (for debugging)
+
+Stop the service, then run it in your terminal to see stdout/stderr directly:
+
+```bash
+sudo systemctl stop edge-ai-api
+
+source ~/fyp-project/web/edge-ai-api/venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+When done, Ctrl+C and restart the service:
+
+```bash
+sudo systemctl start edge-ai-api
+```
+
+### Common failure: SQLite threading
+
+If you see `sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread` in the API logs, the database connection is crossing thread boundaries. Fix:
+
+```bash
+cd ~/fyp-project/web/edge-ai-api && git pull
+sudo systemctl restart edge-ai-api
+```
+
+The `database.py` file includes `check_same_thread=False` to resolve this.
+
+### Common failure: logger keeps restarting (Arduino not found)
+
+The logger service will exit with code 1 if no Arduino is detected. This is expected when the hardware isn't connected. Once plugged in, the auto-detect picks it up on the next restart cycle (every 10 seconds).
+
+To verify the port exists:
+
+```bash
+ls /dev/ttyA* /dev/ttyU*
+```
+
+Expected output when Arduino is connected: `/dev/ttyACM0` or `/dev/ttyUSB0`.
+
+### Common failure: permission denied on serial port
+
+```bash
+sudo usermod -a -G dialout $USER
+# Log out and back in (or reboot) for this to take effect
 ```
 
 ## Database Notes

@@ -61,7 +61,7 @@ edge-ai-api/
 ├── dependencies.py      # Reusable FastAPI dependencies
 ├── data_logger.py       # Arduino serial → SQLite writer (run on Pi)
 ├── seed_data.py         # Generate 48h of sample data for development
-├── WORKFLOW.md          # Boot sequence, service management, troubleshooting
+├── RUNBOOK.md           # Boot sequence, service management, data source states, troubleshooting
 ├── routes/
 │   ├── __init__.py
 │   ├── sensors.py       # GET endpoints for the dashboard
@@ -92,7 +92,7 @@ The Pi's `data_logger.py` writes sensor readings to `farm_data.db` (batch-write 
 - `edge-ai-dashboard.service` — Next.js on port 3000 (separate repo)
 - `edge-ai-logger.service` — data_logger.py with Arduino on USB
 
-See [`WORKFLOW.md`](WORKFLOW.md) for full setup, monitoring, and recovery procedures.
+See [`RUNBOOK.md`](RUNBOOK.md) for full setup, monitoring, and recovery procedures.
 
 ## BME280 Status
 
