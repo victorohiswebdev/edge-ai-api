@@ -38,6 +38,10 @@ sudo systemctl status edge-ai-api edge-ai-dashboard edge-ai-logger
 # Is the API responding?
 curl -s http://localhost:8000 | python3 -m json.tool
 
+# Full pipeline status (source of truth for the badge)
+curl -s http://localhost:8000/api/v1/system/status | python3 -m json.tool
+# Returns: { database_connected, logger_active, last_reading, total_readings }
+
 # Is data flowing?
 curl -s http://localhost:8000/api/v1/sensors/latest | python3 -m json.tool
 
@@ -80,8 +84,17 @@ sudo journalctl -u edge-ai-api -p err --no-pager -n 30
 
 ## Database Notes
 
-- **Single writer:** `data_logger.py` is the only process that writes to `farm_data.db`
+Two tables in `farm_data.db`:
+
+| Table | Purpose | Written by |
+|---|---|---|
+| `sensor_logs` | Sensor readings (moisture, temp, humidity) | `data_logger.py` (every 300s) |
+| `system_log` | Logger heartbeat + system events | `data_logger.py` (on each write cycle) |
+
+Rules:
+- **Single writer:** `data_logger.py` is the only process that writes to the database
 - **FastAPI reads only:** The API opens read-only connections (SQLite handles concurrent reads safely)
+- **Logger heartbeat:** The badge shows "Live Data" when a `logger_heartbeat` event exists in `system_log` within the last 6 minutes
 - **Re-seeding:** If the database is empty or corrupted, re-seed with sample data:
 
 ```bash
@@ -129,8 +142,11 @@ For the project defense, the workflow is:
 
 1. **Power on the Pi** — services auto-start
 2. **Open RealVNC** — see the dashboard on browser at `localhost:3000`
-3. **Check the badge** — "Live Data" (green) confirms the full pipeline is running
-4. **Switch contexts** — if hardware isn't connected, the badge shows "Simulated" — explain the fallback as a designed feature
+3. **Check the badge** — use it to explain each pipeline state:
+   - **Simulated** (amber) → "No hardware connected, dashboard still works — designed for reliability"
+   - **Database** (blue) → "Seeded test data or logger momentarily offline — pipeline intact"
+   - **Live Data** (green) → "Full physical setup — Arduino streaming, sensor data flowing"
+4. **Switch contexts** — demonstrate the fallback works by unplugging and reconnecting the Arduino; watch the badge transition
 
 ## Related Files
 
