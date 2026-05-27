@@ -1,0 +1,18 @@
+[Unit]
+Description=Edge AI Farm Data Logger — Arduino Serial → SQLite
+Documentation=https://github.com/victorohiswebdev/edge-ai-api
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=victorohis
+WorkingDirectory=/home/victorohis/fyp-project/web/edge-ai-api
+ExecStart=/home/victorohis/fyp-project/web/edge-ai-api/venv/bin/python data_logger.py --port /dev/ttyACM0 --interval 300
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
