@@ -53,14 +53,15 @@ sudo journalctl -u edge-ai-logger -f
 
 ## Dashboard Data Source Indicator
 
-The header of the dashboard shows a badge:
+The header of the dashboard shows a badge indicating the current data pipeline status:
 
-| Badge | Meaning |
-|---|---|
-| **● Live Data** (green) | API is reachable — displaying real sensor data from the database |
-| **● Simulated** (amber) | API unreachable — showing client-generated synthetic data |
+| Badge | Color | Meaning |
+|---|---|---|
+| **● Simulated** | Amber | API unreachable — showing client-generated synthetic data |
+| **● Database** | Blue | API reachable — displaying data from the database, but no Arduino logger heartbeat detected (seeded data or logger not running) |
+| **● Live Data** | Green | Full pipeline active — API reachable + Arduino logger writing to the database in the last 6 minutes |
 
-The dashboard polls the API every 10 seconds. If the API goes down or comes back, the badge updates automatically on the next poll cycle.
+The dashboard polls the API and system status every 10 seconds. The badge updates automatically when the pipeline state changes.
 
 ## Service Recovery
 
