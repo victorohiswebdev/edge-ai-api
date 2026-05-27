@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
 from config import settings
-from routes import sensors, ingest
+from routes import sensors, ingest, system
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.add_middleware(
 # ── Routes ──
 app.include_router(sensors.router, prefix="/api/v1", tags=["Sensors"])
 app.include_router(ingest.router, prefix="/api/v1", tags=["Ingest"])
+app.include_router(system.router, prefix="/api/v1", tags=["System"])
 
 
 # ── Root — Health check ──

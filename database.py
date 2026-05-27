@@ -33,5 +33,13 @@ def init_db():
             humidity_perc   REAL
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS system_log (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            event           TEXT NOT NULL,
+            value           TEXT,
+            timestamp       DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()

@@ -203,7 +203,14 @@ def main():
                     conn.commit()
                     log_count += 1
                     last_log_time = time.time()
-                    
+
+                    # Record heartbeat in system_log
+                    cursor.execute(
+                        "INSERT INTO system_log (event, value) VALUES (?, ?)",
+                        ("logger_heartbeat", "active"),
+                    )
+                    conn.commit()
+
                     sensor_status = "BME: OK" if temp is not None else "BME: absent"
                     print(f"  💾 Wrote to database (log #{log_count}, {sensor_status})")
             

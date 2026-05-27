@@ -35,6 +35,7 @@ def seed():
 
     # Clear existing data
     cursor.execute("DELETE FROM sensor_logs")
+    cursor.execute("DELETE FROM system_log")
     conn.commit()
 
     now = datetime.utcnow()
