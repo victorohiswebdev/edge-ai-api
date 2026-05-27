@@ -31,7 +31,24 @@ Then visit:
 | `GET` | `/api/v1/sensors/latest` | Most recent sensor reading |
 | `GET` | `/api/v1/sensors/history` | Historical readings (`?hours=24&limit=200`) |
 | `GET` | `/api/v1/sensors/summary` | Averaged stats (`?hours=24`) |
+| `GET` | `/api/v1/system/status` | Pipeline health — logger heartbeat, DB status |
 | `POST` | `/api/v1/sensors/ingest` | Push a new sensor reading (optional) |
+
+### System Status Endpoint
+
+The `/api/v1/system/status` endpoint is the source of truth for the dashboard's data source indicator:
+
+```json
+{
+  "database_connected": true,
+  "logger_active": true,
+  "last_reading": "2026-05-27T15:10:30",
+  "total_readings": 576
+}
+```
+
+- `logger_active` is `true` when `data_logger.py` has written a heartbeat to the `system_log` table within the last 6 minutes
+- The dashboard uses this to show **Simulated** (amber), **Database** (blue), or **Live Data** (green) in the header
 
 ## Project Structure
 
@@ -42,10 +59,17 @@ edge-ai-api/
 ├── database.py          # SQLite connection + table init
 ├── schemas.py           # Pydantic request/response models
 ├── dependencies.py      # Reusable FastAPI dependencies
+├── data_logger.py       # Arduino serial → SQLite writer (run on Pi)
+├── seed_data.py         # Generate 48h of sample data for development
+├── WORKFLOW.md          # Boot sequence, service management, troubleshooting
 ├── routes/
 │   ├── __init__.py
 │   ├── sensors.py       # GET endpoints for the dashboard
-│   └── ingest.py        # POST endpoint for data ingestion
+│   ├── ingest.py        # POST endpoint for data ingestion
+│   └── system.py        # GET /system/status — pipeline health
+├── deploy/
+│   ├── edge-ai-api.service      # Systemd service file (API)
+│   └── edge-ai-logger.service   # Systemd service file (data logger)
 ├── requirements.txt     # Python dependencies
 ├── .env.example         # Environment variable template
 └── docs/
@@ -56,9 +80,19 @@ edge-ai-api/
 
 ```
 Arduino → Serial → Pi (data_logger.py) → SQLite → FastAPI → Next.js Dashboard
+                                           ↓
+                                    system_log table
+                                    (logger heartbeat)
 ```
 
-The Pi's `data_logger.py` writes sensor readings to `farm_data.db`. FastAPI reads from the same database and serves it to the Next.js frontend via REST. The POST endpoint is optional — use it if you want the API to be the single point of data entry instead.
+The Pi's `data_logger.py` writes sensor readings to `farm_data.db` (batch-write every 5 minutes) and logs a heartbeat to `system_log`. FastAPI reads from the same database and serves it to the Next.js frontend via REST. The dashboard polls `/api/v1/system/status` to determine whether data is **Simulated**, **Database**, or **Live**.
+
+**Systemd services** (auto-start on boot):
+- `edge-ai-api.service` — uvicorn on port 8000
+- `edge-ai-dashboard.service` — Next.js on port 3000 (separate repo)
+- `edge-ai-logger.service` — data_logger.py with Arduino on USB
+
+See [`WORKFLOW.md`](WORKFLOW.md) for full setup, monitoring, and recovery procedures.
 
 ## BME280 Status
 
