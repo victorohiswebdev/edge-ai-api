@@ -10,7 +10,7 @@ from config import settings
 
 def get_db():
     """FastAPI dependency — yields a row-factory connection."""
-    conn = sqlite3.connect(settings.database_url)
+    conn = sqlite3.connect(settings.database_url, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
