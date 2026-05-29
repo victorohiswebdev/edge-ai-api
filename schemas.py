@@ -64,3 +64,35 @@ class LiveReading(BaseModel):
     temperature_c: Optional[float]
     humidity_perc: Optional[float]
     timestamp: datetime
+
+
+# ─── Pump Control Models ───
+
+
+class PumpCommandRequest(BaseModel):
+    """Request to enqueue a pump ON/OFF command."""
+    zone: int
+    command: str  # 'ON' or 'OFF'
+
+
+class PumpCommand(BaseModel):
+    """A single pump command record from the queue."""
+    id: int
+    zone: int
+    command: str
+    status: str
+    created_at: datetime
+
+
+class PumpStatus(BaseModel):
+    """Current state of all pumps."""
+    pump_1: str  # 'ON' or 'OFF'
+    pump_2: str
+    pump_3: str
+    updated_at: datetime
+
+
+class EmergencyStopResponse(BaseModel):
+    """Response after emergency all-off."""
+    success: bool
+    message: str

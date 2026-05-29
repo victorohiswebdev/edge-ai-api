@@ -52,5 +52,24 @@ def init_db():
             humidity_perc   REAL
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pump_commands (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            zone        INTEGER NOT NULL CHECK(zone BETWEEN 1 AND 3),
+            command     TEXT NOT NULL CHECK(command IN ('ON', 'OFF')),
+            status      TEXT DEFAULT 'pending'
+                        CHECK(status IN ('pending','sent','acknowledged','failed')),
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pump_status (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            pump_1      TEXT DEFAULT 'OFF' CHECK(pump_1 IN ('ON','OFF')),
+            pump_2      TEXT DEFAULT 'OFF' CHECK(pump_2 IN ('ON','OFF')),
+            pump_3      TEXT DEFAULT 'OFF' CHECK(pump_3 IN ('ON','OFF')),
+            updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()

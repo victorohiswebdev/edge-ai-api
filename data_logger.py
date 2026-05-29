@@ -68,6 +68,25 @@ def setup_database(db_path):
             humidity_perc   REAL
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pump_commands (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            zone        INTEGER NOT NULL CHECK(zone BETWEEN 1 AND 3),
+            command     TEXT NOT NULL CHECK(command IN ('ON', 'OFF')),
+            status      TEXT DEFAULT 'pending'
+                        CHECK(status IN ('pending','sent','acknowledged','failed')),
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pump_status (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            pump_1      TEXT DEFAULT 'OFF' CHECK(pump_1 IN ('ON','OFF')),
+            pump_2      TEXT DEFAULT 'OFF' CHECK(pump_2 IN ('ON','OFF')),
+            pump_3      TEXT DEFAULT 'OFF' CHECK(pump_3 IN ('ON','OFF')),
+            updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     return conn
 
@@ -110,6 +129,107 @@ def fmt_val(val, unit="", decimals=1):
     if unit:
         return f"{val:.{decimals}f}{unit}"
     return f"{val:3d}%"
+
+
+# ─── Pump Command Polling ──────────────────────────────────────────
+
+def _poll_pump_commands(arduino, cursor, conn):
+    """Check for pending pump commands in the queue and send them to Arduino.
+
+    Called after every sensor read cycle. Grabs the oldest pending command,
+    sends JSON to Arduino over serial, waits for ack, and updates the DB.
+    """
+    try:
+        # Oldest pending command
+        cursor.execute(
+            "SELECT * FROM pump_commands WHERE status = 'pending' ORDER BY id ASC LIMIT 1"
+        )
+        cmd = cursor.fetchone()
+    except sqlite3.OperationalError:
+        return  # Table may not exist yet on first run
+
+    if not cmd:
+        return
+
+    zone = cmd["zone"]
+    command = cmd["command"]
+    cmd_id = cmd["id"]
+
+    # Build the JSON command string
+    cmd_key = f"pump_{zone}"
+    cmd_str = json.dumps({cmd_key: command})
+    print(f"  🔧 Sending pump command: {cmd_str}")
+
+    # Mark as sent
+    cursor.execute(
+        "UPDATE pump_commands SET status = 'sent' WHERE id = ?",
+        (cmd_id,),
+    )
+    conn.commit()
+
+    try:
+        # Send command to Arduino
+        arduino.write((cmd_str + "\n").encode())
+
+        # Wait for ack — Arduino responds with updated sensor JSON
+        # within the same loop cycle (~2s). Use short timeout so we
+        # don't block sensor reading if no ack comes.
+        ack_line = None
+        for _ in range(5):  # Try up to 5 reads (~2.5s)
+            try:
+                raw = arduino.readline()
+                if raw:
+                    ack_line = raw.decode("utf-8").rstrip()
+                    if ack_line:
+                        break
+                time.sleep(0.5)
+            except Exception:
+                break
+
+        if ack_line:
+            try:
+                ack_data = json.loads(ack_line)
+                # Validate that the pump state was applied
+                if ack_data.get(cmd_key) == command:
+                    cursor.execute(
+                        "UPDATE pump_commands SET status = 'acknowledged' WHERE id = ?",
+                        (cmd_id,),
+                    )
+                    print(f"  ✅ Pump {zone} {command} acknowledged")
+
+                    # Update pump_status table
+                    p1 = ack_data.get("pump_1", "OFF")
+                    p2 = ack_data.get("pump_2", "OFF")
+                    p3 = ack_data.get("pump_3", "OFF")
+                    cursor.execute("DELETE FROM pump_status")
+                    cursor.execute(
+                        "INSERT INTO pump_status (pump_1, pump_2, pump_3) VALUES (?, ?, ?)",
+                        (p1, p2, p3),
+                    )
+                    conn.commit()
+                else:
+                    cursor.execute(
+                        "UPDATE pump_commands SET status = 'failed' WHERE id = ?",
+                        (cmd_id,),
+                    )
+                    conn.commit()
+                    print(f"  ⚠ Pump {zone} {command} ack mismatch: {ack_line[:60]}")
+            except json.JSONDecodeError:
+                cursor.execute(
+                    "UPDATE pump_commands SET status = 'failed' WHERE id = ?",
+                    (cmd_id,),
+                )
+                conn.commit()
+                print(f"  ⚠ Pump cmd ack decode failed: {ack_line[:60]}")
+        else:
+            print(f"  ⚠ Pump {zone} {command} sent but no ack received")
+    except serial.SerialException as e:
+        cursor.execute(
+            "UPDATE pump_commands SET status = 'failed' WHERE id = ?",
+            (cmd_id,),
+        )
+        conn.commit()
+        print(f"  ❌ Pump cmd serial error: {e}")
 
 
 # ─── Main Loop ────────────────────────────────────────────────────────────────
@@ -271,7 +391,10 @@ def main():
 
                     sensor_status = "BME: OK" if temp is not None else "BME: absent"
                     print(f"  💾 Wrote to database (log #{log_count}, {sensor_status})")
-            
+
+            # ── Pump command polling ──
+            _poll_pump_commands(arduino, cursor, conn)
+
             # Small sleep to prevent busy-waiting on CPU
             time.sleep(0.1)
     
