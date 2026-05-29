@@ -116,6 +116,14 @@ curl -s http://localhost:8000/api/v1/system/status | python3 -m json.tool
 # Is data flowing?
 curl -s http://localhost:8000/api/v1/sensors/latest | python3 -m json.tool
 
+# Pump status
+curl -s http://localhost:8000/api/v1/pumps/status | python3 -m json.tool
+
+# Send a pump command
+curl -s -X POST http://localhost:8000/api/v1/pumps/command \
+  -H "Content-Type: application/json" \
+  -d '{"zone": 1, "command": "ON"}' | python3 -m json.tool
+
 # How many readings in the database?
 sqlite3 ~/fyp-project/web/edge-ai-api/farm_data.db "SELECT COUNT(*) FROM sensor_logs;"
 
@@ -207,7 +215,10 @@ Two tables in `farm_data.db`:
 | Table | Purpose | Written by |
 |---|---|---|
 | `sensor_logs` | Sensor readings (moisture, temp, humidity) | `data_logger.py` (every 300s) |
+| `latest_reading` | Most recent sensor snapshot (updated every 2s) | `data_logger.py` (every read) |
 | `system_log` | Logger heartbeat + system events | `data_logger.py` (on each write cycle) |
+| `pump_commands` | Command queue — pending ON/OFF per zone | API (dashboard → POST) |
+| `pump_status` | Current pump state (pump_1/2/3: ON/OFF) | `data_logger.py` (on ack) |
 
 Rules:
 - **Single writer:** `data_logger.py` is the only process that writes to the database
@@ -253,6 +264,38 @@ python seed_data.py                  # optional: seed sample data
 > sudo usermod -a -G dialout $USER
 > # Log out and back in (or reboot) for this to take effect
 > ```
+
+## Pump Control
+
+The pump system uses a **queue pattern** to avoid serial contention between sensor reads and pump commands:
+
+```
+Dashboard → POST /api/v1/pumps/command → pump_commands table (pending)
+    ↓
+data_logger.py polls pump_commands every sensor cycle
+    ↓
+Sends JSON to Arduino: {"pump_1":"ON"}
+    ↓
+Arduino toggles relay → sends ack in next sensor JSON
+    ↓
+data_logger.py updates pump_status table
+    ↓
+Dashboard polls GET /api/v1/pumps/status every 3s (when any pump is ON)
+```
+
+### Queue state machine
+
+Each command goes through: `pending → sent → acknowledged` (or `failed`).
+
+### Emergency Stop
+
+`POST /api/v1/pumps/emergency-stop` clears the queue, writes all-OFF to pump_status, and marks all pending commands as sent. This bypasses the queue for immediate safety.
+
+### Safety features
+
+- **Dedup** — API ignores commands when a zone is already in the requested state
+- **Fail-safe relays** — active-LOW: Arduino reset → pins float HIGH → pumps OFF
+- **Confirmation dialog** — Emergency Stop requires user confirmation on the dashboard
 
 ## Defense Presentation Mode
 

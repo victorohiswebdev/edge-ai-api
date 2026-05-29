@@ -17,7 +17,9 @@ edge-ai-api/
 ├── routes/
 │   ├── __init__.py            # Empty — makes routes a package
 │   ├── sensors.py             # GET endpoints for sensor data
-│   └── ingest.py              # POST endpoint for data ingestion
+│   ├── ingest.py              # POST endpoint for data ingestion
+│   ├── system.py              # GET endpoints — pipeline status + health
+│   └── pumps.py               # POST/GET — pump control (queue pattern)
 ├── requirements.txt           # Python dependencies
 └── .env                       # Local config (DB_PATH, PORT, etc.)
 ```
@@ -354,8 +356,14 @@ def ingest_data(data: SensorDataIngest, db: Connection = Depends(get_db)):
 |---|---|---|---|
 | `GET` | `/` | Health check | — |
 | `GET` | `/api/v1/sensors/latest` | Most recent reading | — |
+| `GET` | `/api/v1/sensors/live` | Real-time reading (updated every 2s) | — |
 | `GET` | `/api/v1/sensors/history` | Historical readings | `hours` (default 24), `limit` (default 100) |
 | `GET` | `/api/v1/sensors/summary` | Aggregated averages | `hours` (default 24) |
+| `GET` | `/api/v1/system/status` | Pipeline health (logger heartbeat) | — |
+| `GET` | `/api/v1/system/health` | Full hardware/software health status | — |
+| `POST` | `/api/v1/pumps/command` | Enqueue a pump ON/OFF command | Body: `{zone, command}` |
+| `GET` | `/api/v1/pumps/status` | Current pump states (ON/OFF per zone) | — |
+| `POST` | `/api/v1/pumps/emergency-stop` | Emergency all-off (bypasses queue) | — |
 | `POST` | `/api/v1/sensors/ingest` | Push new reading (future) | — |
 
 ---
@@ -367,20 +375,24 @@ def ingest_data(data: SensorDataIngest, db: Connection = Depends(get_db)):
 │   Arduino   │ ─────────────────→ │  Pi (Raspberry Pi 4)  │
 │ sensor_reader│   JSON every 2s   │                       │
 │ .ino (v2.0) │                    │  data_logger.py ─→ farm_data.db  │
-│             │ ←──────────────── │  (optional: POST to API)         │
-│             │   {"pump":"ON"}   │                       │
-└─────────────┘                    └──────────┬───────────┘
-                                              │
-                                    ┌─────────▼───────────┐
-                                    │   FastAPI (port 8000) │
-                                    │   GET /api/v1/*      │
-                                    │   (reads farm_data.db)│
-                                    └─────────┬───────────┘
-                                              │ HTTP (localhost)
-                                    ┌─────────▼───────────┐
-                                    │  Next.js Dashboard  │
-                                    │  (port 3000)        │
-                                    └─────────────────────┘
+│             │ ←──────────────── │  (polls pump_commands)           │
+│             │   {"pump_1":"ON"} │                       │
+│             │   + ack via next  │                       │
+│             │   sensor JSON     │                       │
+└──────┬──────┘                    └──────────┬───────────┘
+       │                                       │
+  ┌────▼────┐                         ┌────────▼───────────┐
+  │ 3× Pumps│                         │   FastAPI (port 8000) │
+  │ (Relays)│                         │   GET /api/v1/*      │
+  └─────────┘                         │   POST /pumps/*      │
+                                      │   (reads farm_data.db)│
+                                      └─────────┬───────────┘
+                                                 │ HTTP (localhost)
+                                      ┌─────────▼───────────┐
+                                      │  Next.js Dashboard   │
+                                      │  PumpControl (UI)    │
+                                      │  (port 3000)         │
+                                      └──────────────────────┘
 ```
 
 ---

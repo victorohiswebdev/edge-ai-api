@@ -29,9 +29,14 @@ Then visit:
 |---|---|---|
 | `GET` | `/` | Health check |
 | `GET` | `/api/v1/sensors/latest` | Most recent sensor reading |
+| `GET` | `/api/v1/sensors/live` | Real-time reading (updated every 2s) |
 | `GET` | `/api/v1/sensors/history` | Historical readings (`?hours=24&limit=200`) |
 | `GET` | `/api/v1/sensors/summary` | Averaged stats (`?hours=24`) |
 | `GET` | `/api/v1/system/status` | Pipeline health — logger heartbeat, DB status |
+| `GET` | `/api/v1/system/health` | Full hardware/software health check |
+| `POST` | `/api/v1/pumps/command` | Enqueue a pump ON/OFF command |
+| `GET` | `/api/v1/pumps/status` | Current pump state |
+| `POST` | `/api/v1/pumps/emergency-stop` | Emergency all-off (bypasses queue) |
 | `POST` | `/api/v1/sensors/ingest` | Push a new sensor reading (optional) |
 
 ### System Status Endpoint
@@ -66,7 +71,8 @@ edge-ai-api/
 │   ├── __init__.py
 │   ├── sensors.py       # GET endpoints for the dashboard
 │   ├── ingest.py        # POST endpoint for data ingestion
-│   └── system.py        # GET /system/status — pipeline health
+│   ├── system.py        # GET /system/status + /system/health
+│   └── pumps.py         # POST /pumps/command + GET /pumps/status + POST /pumps/emergency-stop
 ├── deploy/
 │   ├── edge-ai-api.service      # Systemd service file (API)
 │   └── edge-ai-logger.service   # Systemd service file (data logger)
@@ -80,12 +86,19 @@ edge-ai-api/
 
 ```
 Arduino → Serial → Pi (data_logger.py) → SQLite → FastAPI → Next.js Dashboard
-                                           ↓
-                                    system_log table
-                                    (logger heartbeat)
+                                           ↓                       ↓
+                                    system_log table      PumpControl (UI)
+                                    (logger heartbeat)        ↓ POST
+                                                         pump_commands table
+                                                              ↓ poll
+                                                         data_logger.py
+                                                              ↓ Serial
+                                                         Arduino → relays → pumps
 ```
 
-The Pi's `data_logger.py` writes sensor readings to `farm_data.db` (batch-write every 5 minutes) and logs a heartbeat to `system_log`. FastAPI reads from the same database and serves it to the Next.js frontend via REST. The dashboard polls `/api/v1/system/status` to determine whether data is **Simulated**, **Database**, or **Live**.
+The Pi's `data_logger.py` writes sensor readings to `farm_data.db` (batch-write every 5 minutes) and logs a heartbeat to `system_log`. FastAPI reads from the same database and serves it to the Next.js frontend via REST.
+
+**Pump control** uses a queue pattern to avoid serial contention: the dashboard posts commands to `pump_commands` table via the API, and `data_logger.py` polls this table after each sensor read cycle. Commands are sent to the Arduino as JSON over serial, and the Arduino's acknowledgment updates the `pump_status` table for dashboard polling.
 
 **Systemd services** (auto-start on boot):
 - `edge-ai-api.service` — uvicorn on port 8000
