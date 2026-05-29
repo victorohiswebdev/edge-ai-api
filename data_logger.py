@@ -124,7 +124,8 @@ def main():
     # ── Connect to Arduino ──
     try:
         arduino = serial.Serial(port, SERIAL_BAUD, timeout=SERIAL_TIMEOUT)
-        arduino.flush()
+        time.sleep(3)                     # Let Arduino boot after DTR reset
+        arduino.reset_input_buffer()      # Discard startup messages
         print(f"✅ Connected to Arduino on {port} @ {SERIAL_BAUD} baud")
     except Exception as e:
         print(f"❌ Failed to open {port}: {e}")
@@ -147,9 +148,9 @@ def main():
     
     try:
         while True:
-            if arduino.in_waiting > 0:
-                # Read one line from Arduino
-                raw_line = arduino.readline()
+            # Read one line from Arduino
+            raw_line = arduino.readline()
+            if raw_line:
                 try:
                     line = raw_line.decode("utf-8").rstrip()
                 except UnicodeDecodeError:
