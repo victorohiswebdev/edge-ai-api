@@ -130,11 +130,11 @@ def main():
         while arduino.readline():
             pass
         arduino.timeout = SERIAL_TIMEOUT
-        print(f"✅ Connected to Arduino on {port} @ {SERIAL_BAUD} baud")
+        print(f"✅ Connected to Arduino on {port} @ {SERIAL_BAUD} baud", flush=True)
     except Exception as e:
-        print(f"❌ Failed to open {port}: {e}")
-        print("   Check: Is the Arduino plugged in? Do you have permission?")
-        print("   Fix:   sudo usermod -a -G dialout $USER  (then log out/in)")
+        print(f"❌ Failed to open {port}: {e}", flush=True)
+        print("   Check: Is the Arduino plugged in? Do you have permission?", flush=True)
+        print("   Fix:   sudo usermod -a -G dialout $USER  (then log out/in)", flush=True)
         sys.exit(1)
     
     # ── Setup database ──
