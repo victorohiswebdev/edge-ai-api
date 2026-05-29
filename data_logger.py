@@ -27,7 +27,7 @@ from datetime import datetime
 # ─── Config ───────────────────────────────────────────────────────────────────
 DB_PATH = "farm_data.db"
 SERIAL_BAUD = 9600
-SERIAL_TIMEOUT = 2          # seconds before giving up on serial read
+SERIAL_TIMEOUT = 5           # seconds before giving up on serial read
 LOG_INTERVAL = 300           # seconds between database writes (5 min default)
 DEFAULT_PORT = None          # None = auto-detect
 
@@ -125,7 +125,11 @@ def main():
     try:
         arduino = serial.Serial(port, SERIAL_BAUD, timeout=SERIAL_TIMEOUT)
         time.sleep(3)                     # Let Arduino boot after DTR reset
-        arduino.reset_input_buffer()      # Discard startup messages
+        # Drain startup messages (BME280 init, etc.)
+        arduino.timeout = 0.5
+        while arduino.readline():
+            pass
+        arduino.timeout = SERIAL_TIMEOUT
         print(f"✅ Connected to Arduino on {port} @ {SERIAL_BAUD} baud")
     except Exception as e:
         print(f"❌ Failed to open {port}: {e}")
@@ -148,8 +152,30 @@ def main():
     
     try:
         while True:
-            # Read one line from Arduino
-            raw_line = arduino.readline()
+            try:
+                # Read one line from Arduino
+                raw_line = arduino.readline()
+            except serial.SerialException:
+                # Arduino disconnected — try to reconnect
+                print("  ⚠ Serial connection lost — reconnecting...")
+                try:
+                    arduino.close()
+                except:
+                    pass
+                time.sleep(2)
+                try:
+                    arduino = serial.Serial(port, SERIAL_BAUD, timeout=SERIAL_TIMEOUT)
+                    time.sleep(3)
+                    arduino.timeout = 0.5
+                    while arduino.readline():
+                        pass
+                    arduino.timeout = SERIAL_TIMEOUT
+                    print("  ✅ Reconnected\n")
+                    continue
+                except Exception as e:
+                    print(f"  ❌ Reconnect failed: {e}")
+                    time.sleep(5)
+                    continue
             if raw_line:
                 try:
                     line = raw_line.decode("utf-8").rstrip()
