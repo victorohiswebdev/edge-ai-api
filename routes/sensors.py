@@ -44,12 +44,13 @@ def get_history(
 ):
     """Return historical readings for time-series charts."""
     since = datetime.utcnow() - timedelta(hours=hours)
+    since_str = since.strftime("%Y-%m-%d %H:%M:%S")
     rows = db.execute(
         """SELECT * FROM sensor_logs
            WHERE timestamp >= ?
-           ORDER BY timestamp DESC
+           ORDER BY timestamp ASC
            LIMIT ?""",
-        (since.isoformat(), limit),
+        (since_str, limit),
     ).fetchall()
 
     return [dict(r) for r in rows]
