@@ -172,18 +172,29 @@ def _poll_pump_commands(arduino, cursor, conn):
     try:
         # Send command to Arduino
         arduino.write((cmd_str + "\n").encode())
+        time.sleep(0.15)  # Brief pause for Arduino to process before we read
 
-        # Wait for ack — Arduino responds with updated sensor JSON
-        # within the same loop cycle (~2s). Use short timeout so we
-        # don't block sensor reading if no ack comes.
+        # Wait for ack — keep reading until we get one, skipping sensor data
+        # Sensor JSON won't have pump_N keys; ack JSON will.
         ack_line = None
-        for _ in range(5):  # Try up to 5 reads (~2.5s)
+        for _ in range(8):  # Try up to 8 reads (~4s = 2 Arduino cycles)
             try:
                 raw = arduino.readline()
                 if raw:
-                    ack_line = raw.decode("utf-8").rstrip()
-                    if ack_line:
-                        break
+                    line = raw.decode("utf-8").rstrip()
+                    if not line:
+                        time.sleep(0.5)
+                        continue
+                    # Check if this is ack (has pump_N field) or sensor data
+                    try:
+                        parsed = json.loads(line)
+                        # If it has pump_1/2/3 keys, it's an ack
+                        if any(k in parsed for k in ("pump_1", "pump_2", "pump_3")):
+                            ack_line = line
+                            break
+                        # Otherwise it's sensor data — skip and keep reading
+                    except json.JSONDecodeError:
+                        pass  # garbled line, skip
                 time.sleep(0.5)
             except Exception:
                 break
