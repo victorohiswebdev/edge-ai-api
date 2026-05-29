@@ -48,13 +48,13 @@ def get_history(
     rows = db.execute(
         """SELECT * FROM sensor_logs
            WHERE timestamp >= ?
-           ORDER BY timestamp ASC
+           ORDER BY timestamp DESC
            LIMIT ?""",
         (since_str, limit),
     ).fetchall()
 
     result = []
-    for r in rows:
+    for r in reversed(rows):  # reverse so chart gets oldest→newest order
         d = dict(r)
         # Convert UTC string → ISO 8601 with Z suffix so browser shows local time
         ts = d.get("timestamp")
