@@ -72,6 +72,9 @@ data/raw/
 data/processed/
 *.sqlite
 *.db
+# Model binaries — re-trainable from scripts/
+*.pkl
+models/*.json
 
 # ─────────────────────────────────────────────
 # ✅ What TO Commit (for reference)
