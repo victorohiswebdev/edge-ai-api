@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Query
 from sqlite3 import Connection
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from database import get_db
 from schemas import LatestReading, SensorSummary, LiveReading
 
@@ -32,7 +32,7 @@ def get_latest(db: Connection = Depends(get_db)):
         "moisture_zone_3": row["moisture_zone_3"],
         "temperature_c": row["temperature_c"],
         "humidity_perc": row["humidity_perc"],
-        "timestamp": row["timestamp"],
+        "timestamp": datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc),
     }
 
 
@@ -53,7 +53,19 @@ def get_history(
         (since_str, limit),
     ).fetchall()
 
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        # Convert UTC string → ISO 8601 with Z suffix so browser shows local time
+        ts = d.get("timestamp")
+        if ts:
+            try:
+                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                d["timestamp"] = dt.isoformat() + "Z"
+            except (ValueError, TypeError):
+                pass
+        result.append(d)
+    return result
 
 
 @router.get("/sensors/live", response_model=LiveReading)
@@ -83,7 +95,7 @@ def get_live(db: Connection = Depends(get_db)):
         "moisture_zone_3": row["moisture_zone_3"],
         "temperature_c": row["temperature_c"],
         "humidity_perc": row["humidity_perc"],
-        "timestamp": row["timestamp"],
+        "timestamp": datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc),
     }
 
 
