@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlite3 import Connection
 from datetime import datetime, timedelta
 from database import get_db
-from schemas import LatestReading, SensorSummary
+from schemas import LatestReading, SensorSummary, LiveReading
 
 router = APIRouter()
 
@@ -53,6 +53,37 @@ def get_history(
     ).fetchall()
 
     return [dict(r) for r in rows]
+
+
+@router.get("/sensors/live", response_model=LiveReading)
+def get_live(db: Connection = Depends(get_db)):
+    """Return the most recent real-time sensor reading (updated every ~2s by data_logger).
+
+    This endpoint reads from the latest_reading table which is overwritten
+    on every Arduino serial read, giving near-real-time data for the dashboard.
+    """
+    row = db.execute(
+        "SELECT * FROM latest_reading ORDER BY timestamp DESC LIMIT 1"
+    ).fetchone()
+
+    if not row:
+        return {
+            "moisture_zone_1": None,
+            "moisture_zone_2": None,
+            "moisture_zone_3": None,
+            "temperature_c": None,
+            "humidity_perc": None,
+            "timestamp": datetime.utcnow(),
+        }
+
+    return {
+        "moisture_zone_1": row["moisture_zone_1"],
+        "moisture_zone_2": row["moisture_zone_2"],
+        "moisture_zone_3": row["moisture_zone_3"],
+        "temperature_c": row["temperature_c"],
+        "humidity_perc": row["humidity_perc"],
+        "timestamp": row["timestamp"],
+    }
 
 
 @router.get("/sensors/summary", response_model=SensorSummary)

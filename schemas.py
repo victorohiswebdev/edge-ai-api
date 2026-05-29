@@ -54,3 +54,13 @@ class SensorDataIngest(BaseModel):
     temperature_c: Optional[float] = None
     humidity_perc: Optional[float] = None
     timestamp: Optional[datetime] = None
+
+
+class LiveReading(BaseModel):
+    """Most recent real-time sensor reading (updated every 2s)."""
+    moisture_zone_1: Optional[int]
+    moisture_zone_2: Optional[int]
+    moisture_zone_3: Optional[int]
+    temperature_c: Optional[float]
+    humidity_perc: Optional[float]
+    timestamp: datetime

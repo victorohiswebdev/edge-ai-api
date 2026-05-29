@@ -41,5 +41,16 @@ def init_db():
             timestamp       DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS latest_reading (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp       DATETIME DEFAULT CURRENT_TIMESTAMP,
+            moisture_zone_1 INTEGER,
+            moisture_zone_2 INTEGER,
+            moisture_zone_3 INTEGER,
+            temperature_c   REAL,
+            humidity_perc   REAL
+        )
+    """)
     conn.commit()
     conn.close()

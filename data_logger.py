@@ -35,11 +35,11 @@ DEFAULT_PORT = None          # None = auto-detect
 # ─── Database Setup ───────────────────────────────────────────────────────────
 
 def setup_database(db_path):
-    """Create the sensor_logs table if it doesn't exist.
+    """Create the sensor_logs and latest_reading tables if they don't exist.
     
-    The table is structured for time-series analysis — timestamps are
-    auto-generated, and the columns map 1:1 to the Arduino JSON keys.
-    This makes it trivial to export for Random Forest training later.
+    The main sensor_logs table stores time-series data for historical analysis.
+    The latest_reading table holds only the most recent sensor snapshot for
+    the live dashboard (updated every read cycle).
     
     Temperature and humidity are nullable — they'll be NULL when the
     BME280 sensor is disconnected.
@@ -48,6 +48,17 @@ def setup_database(db_path):
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sensor_logs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp       DATETIME DEFAULT CURRENT_TIMESTAMP,
+            moisture_zone_1 INTEGER,
+            moisture_zone_2 INTEGER,
+            moisture_zone_3 INTEGER,
+            temperature_c   REAL,
+            humidity_perc   REAL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS latest_reading (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp       DATETIME DEFAULT CURRENT_TIMESTAMP,
             moisture_zone_1 INTEGER,
@@ -216,6 +227,22 @@ def main():
                       f"T:{temp_str}  "
                       f"H:{humid_str}  "
                       f"(read #{read_count})")
+                
+                # Update latest_reading table every read (live dashboard)
+                cursor.execute("DELETE FROM latest_reading")
+                cursor.execute("""
+                    INSERT INTO latest_reading
+                    (moisture_zone_1, moisture_zone_2, moisture_zone_3,
+                     temperature_c, humidity_perc)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    data.get("moisture_zone_1"),
+                    data.get("moisture_zone_2"),
+                    data.get("moisture_zone_3"),
+                    data.get("temperature_c"),
+                    data.get("humidity_perc"),
+                ))
+                conn.commit()
                 
                 # Batch-write to database every LOG_INTERVAL seconds
                 if time.time() - last_log_time >= log_interval:
