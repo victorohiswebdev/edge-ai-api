@@ -132,6 +132,12 @@ sudo journalctl -u edge-ai-api -f
 
 # Live log stream (data logger)
 sudo journalctl -u edge-ai-logger -f
+
+# Take a camera snapshot (saves to ~/captures/)
+curl -s -o ~/test_capture.jpg http://localhost:8000/api/v1/camera/snapshot
+
+# List recent camera captures
+curl -s http://localhost:8000/api/v1/camera/captures | python3 -m json.tool
 ```
 
 ## Dashboard Data Source Indicator

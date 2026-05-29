@@ -38,6 +38,9 @@ Then visit:
 | `GET` | `/api/v1/pumps/status` | Current pump state |
 | `POST` | `/api/v1/pumps/emergency-stop` | Emergency all-off (bypasses queue) |
 | `POST` | `/api/v1/sensors/ingest` | Push a new sensor reading (optional) |
+| `GET` | `/api/v1/camera/snapshot` | Capture a photo with Pi Camera V2 (returns JPEG) |
+| `GET` | `/api/v1/camera/captures` | List recent captures (`?limit=10`) |
+| `GET` | `/api/v1/camera/captures/{filename}` | Serve a specific captured image |
 
 ### System Status Endpoint
 
@@ -65,6 +68,7 @@ edge-ai-api/
 ├── schemas.py           # Pydantic request/response models
 ├── dependencies.py      # Reusable FastAPI dependencies
 ├── data_logger.py       # Arduino serial → SQLite writer (run on Pi)
+├── camera_worker.py     # Pi Camera capture worker (subprocess for picamera2)
 ├── seed_data.py         # Generate 48h of sample data for development
 ├── RUNBOOK.md           # Boot sequence, service management, data source states, troubleshooting
 ├── routes/
@@ -72,7 +76,8 @@ edge-ai-api/
 │   ├── sensors.py       # GET endpoints for the dashboard
 │   ├── ingest.py        # POST endpoint for data ingestion
 │   ├── system.py        # GET /system/status + /system/health
-│   └── pumps.py         # POST /pumps/command + GET /pumps/status + POST /pumps/emergency-stop
+│   ├── pumps.py         # POST /pumps/command + GET /pumps/status + POST /pumps/emergency-stop
+│   └── camera.py        # GET /camera/snapshot + /camera/captures
 ├── deploy/
 │   ├── edge-ai-api.service      # Systemd service file (API)
 │   └── edge-ai-logger.service   # Systemd service file (data logger)
@@ -89,11 +94,11 @@ Arduino → Serial → Pi (data_logger.py) → SQLite → FastAPI → Next.js Da
                                            ↓                       ↓
                                     system_log table      PumpControl (UI)
                                     (logger heartbeat)        ↓ POST
-                                                         pump_commands table
-                                                              ↓ poll
-                                                         data_logger.py
-                                                              ↓ Serial
-                                                         Arduino → relays → pumps
+                                    Camera (CSI)          pump_commands table
+                                        ↓                       ↓ poll
+                                    camera_worker.py       data_logger.py
+                                        ↓                       ↓ Serial
+                                    captures/               Arduino → relays → pumps
 ```
 
 The Pi's `data_logger.py` writes sensor readings to `farm_data.db` (batch-write every 5 minutes) and logs a heartbeat to `system_log`. FastAPI reads from the same database and serves it to the Next.js frontend via REST.
@@ -110,3 +115,16 @@ See [`RUNBOOK.md`](RUNBOOK.md) for full setup, monitoring, and recovery procedur
 ## BME280 Status
 
 The BME280 environmental sensor is **optional**. When absent, `temperature_c` and `humidity_perc` return as `null` in the API responses. The dashboard handles this gracefully.
+
+## Pi Camera Module
+
+The system supports a **Pi Camera Module V2** (OV5647 sensor) connected via CSI interface. Camera capture runs on Debian 12 Bookworm using the **libcamera + picamera2** stack.
+
+**Capture flow:** Dashboard → `GET /api/v1/camera/snapshot` → `camera_worker.py` (subprocess) → picamera2 → JPEG saved to `captures/` → returned as image response.
+
+The camera worker runs as a separate subprocess to avoid picamera2 library conflicts with uvicorn's async event loop. Captured images are stored in the `captures/` directory and can be browsed via `GET /api/v1/camera/captures`.
+
+**Required packages (Pi only):**
+```bash
+sudo apt install -y libcamera-tools python3-picamera2
+```
