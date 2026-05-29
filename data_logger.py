@@ -362,23 +362,24 @@ def main():
                     data.get("temperature_c"),
                     data.get("humidity_perc"),
                 ))
+
+                # Write to sensor_logs every read (so the chart captures all spikes)
+                cursor.execute("""
+                    INSERT INTO sensor_logs 
+                    (moisture_zone_1, moisture_zone_2, moisture_zone_3,
+                     temperature_c, humidity_perc)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    data.get("moisture_zone_1"),
+                    data.get("moisture_zone_2"),
+                    data.get("moisture_zone_3"),
+                    data.get("temperature_c"),
+                    data.get("humidity_perc"),
+                ))
                 conn.commit()
-                
-                # Batch-write to database every LOG_INTERVAL seconds
+
+                # Log heartbeat every LOG_INTERVAL seconds
                 if time.time() - last_log_time >= log_interval:
-                    cursor.execute("""
-                        INSERT INTO sensor_logs 
-                        (moisture_zone_1, moisture_zone_2, moisture_zone_3,
-                         temperature_c, humidity_perc)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (
-                        data.get("moisture_zone_1"),
-                        data.get("moisture_zone_2"),
-                        data.get("moisture_zone_3"),
-                        data.get("temperature_c"),   # None → SQL NULL
-                        data.get("humidity_perc"),   # None → SQL NULL
-                    ))
-                    conn.commit()
                     log_count += 1
                     last_log_time = time.time()
 
@@ -390,7 +391,7 @@ def main():
                     conn.commit()
 
                     sensor_status = "BME: OK" if temp is not None else "BME: absent"
-                    print(f"  💾 Wrote to database (log #{log_count}, {sensor_status})")
+                    print(f"  💾 Heartbeat logged (log #{log_count}, {sensor_status})")
 
             # ── Pump command polling ──
             _poll_pump_commands(arduino, cursor, conn)
