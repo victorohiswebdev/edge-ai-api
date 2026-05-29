@@ -164,13 +164,17 @@ def main():
                     pass
                 time.sleep(2)
                 try:
-                    arduino = serial.Serial(port, SERIAL_BAUD, timeout=SERIAL_TIMEOUT)
+                    # Re-scan for Arduino — it may have moved ports
+                    new_port = find_arduino() or port
+                    arduino = serial.Serial(new_port, SERIAL_BAUD, timeout=SERIAL_TIMEOUT)
+                    print(f"  → Reconnected on {new_port}")
                     time.sleep(3)
                     arduino.timeout = 0.5
                     while arduino.readline():
                         pass
                     arduino.timeout = SERIAL_TIMEOUT
-                    print("  ✅ Reconnected\n")
+                    port = new_port
+                    print(f"  ✅ Reconnected\n")
                     continue
                 except Exception as e:
                     print(f"  ❌ Reconnect failed: {e}")
