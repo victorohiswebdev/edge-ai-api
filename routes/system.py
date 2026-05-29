@@ -141,12 +141,6 @@ def get_system_health(db: Connection = Depends(get_db)):
             "value": m3,
         }
 
-    # Mark inactive zones where value is 0 (no sensor connected)
-    for z in ["moisture_z2", "moisture_z3"]:
-        if sensors[z].get("value") == 0 and sensors[z]["status"] == "ok":
-            sensors[z]["status"] = "inactive"
-            sensors[z]["note"] = "no sensor connected"
-
     # ── Services ──
     services = {
         "api": {"running": _service_running("edge-ai-api.service")},
