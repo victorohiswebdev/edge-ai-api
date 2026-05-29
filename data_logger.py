@@ -28,7 +28,9 @@ from datetime import datetime
 DB_PATH = "farm_data.db"
 SERIAL_BAUD = 9600
 SERIAL_TIMEOUT = 5           # seconds before giving up on serial read
-LOG_INTERVAL = 300           # seconds between database writes (5 min default)
+LOG_INTERVAL = 300           # seconds between heartbeat log messages
+MAX_SENSOR_ROWS = 50000      # cap sensor_logs to prevent unbounded growth
+CLEANUP_INTERVAL = 500       # check row count every N reads
 DEFAULT_PORT = None          # None = auto-detect
 
 
@@ -238,7 +240,7 @@ def main():
     parser = argparse.ArgumentParser(description="FYP Sensor Data Logger")
     parser.add_argument("--port", help=f"Serial port (default: auto-detect)")
     parser.add_argument("--interval", type=int, default=LOG_INTERVAL,
-                        help=f"Seconds between DB writes (default: {LOG_INTERVAL})")
+                        help=f"Seconds between heartbeat log messages (default: {LOG_INTERVAL})")
     parser.add_argument("--db", default=DB_PATH,
                         help=f"SQLite database path (default: {DB_PATH})")
     args = parser.parse_args()
@@ -376,6 +378,17 @@ def main():
                     data.get("temperature_c"),
                     data.get("humidity_perc"),
                 ))
+
+                # Periodic cleanup — keep DB lean
+                if read_count % CLEANUP_INTERVAL == 0:
+                    cursor.execute(
+                        "DELETE FROM sensor_logs WHERE id NOT IN "
+                        "(SELECT id FROM sensor_logs ORDER BY timestamp DESC LIMIT ?)",
+                        (MAX_SENSOR_ROWS,),
+                    )
+                    if cursor.rowcount:
+                        print(f"  🧹 Pruned {cursor.rowcount} old rows (cap: {MAX_SENSOR_ROWS})")
+
                 conn.commit()
 
                 # Log heartbeat every LOG_INTERVAL seconds
