@@ -1,6 +1,2 @@
-# Model files (trained on dev machine, deployed separately)
-*.pkl
-*.pickle
-
 # Training data (regenerated on demand)
 training_data*.csv
