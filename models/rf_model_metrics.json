@@ -1,20 +1,20 @@
 {
   "n_samples": 44982,
   "n_features": 9,
-  "n_estimators": 150,
-  "max_depth": 14,
-  "test_mae": 3.351,
-  "test_rmse": 7.014,
-  "test_r2": 0.9157,
+  "n_estimators": 50,
+  "max_depth": 10,
+  "test_mae": 3.462,
+  "test_rmse": 7.128,
+  "test_r2": 0.9129,
   "feature_importance": {
-    "moisture_t_1": 0.8792,
-    "days_since_watered": 0.0424,
-    "moisture_t_2": 0.0355,
-    "moisture_t_3": 0.0211,
-    "zone": 0.0082,
-    "hour": 0.0048,
-    "humidity_pct": 0.0037,
-    "vpd_kpa": 0.0026,
-    "temp_c": 0.0025
+    "moisture_t_1": 0.8998,
+    "days_since_watered": 0.038,
+    "moisture_t_2": 0.034,
+    "moisture_t_3": 0.0161,
+    "zone": 0.0079,
+    "humidity_pct": 0.0013,
+    "hour": 0.0013,
+    "temp_c": 0.0008,
+    "vpd_kpa": 0.0008
   }
 }
