@@ -72,7 +72,16 @@ data/raw/
 data/processed/
 *.sqlite
 *.db
+
+# ── CNN Training artifacts (re-trainable) ──
+# Dataset — download/extract separately (265 MB tar.gz)
+models/cnn/dataset/
+# Saved models, checkpoints, logs, plots
+models/cnn/models/
+
+# ─────────────────────────────────────────────
 # Model binaries — re-trainable from scripts/
+# ─────────────────────────────────────────────
 *.pkl
 models/*.json
 

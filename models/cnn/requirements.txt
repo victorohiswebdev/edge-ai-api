@@ -1,0 +1,9 @@
+# ── CNN Training Dependencies ──────────────────────────────────────────────
+# Install on your PC (not on the Pi):
+#   pip install -r models/cnn/requirements.txt
+
+tensorflow>=2.13
+numpy
+pillow
+matplotlib
+scikit-learn
