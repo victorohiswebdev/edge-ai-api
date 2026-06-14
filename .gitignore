@@ -77,7 +77,7 @@ data/processed/
 # Dataset — download/extract separately (265 MB tar.gz)
 models/cnn/dataset/
 # Saved models, checkpoints, logs, plots
-models/cnn/models/
+# models/cnn/models/
 
 # ── RF Training artifacts (re-trainable) ──
 # Synthetic training data (regenerated with generate_data.py)
@@ -88,7 +88,7 @@ models/rf/training_data*.csv
 # Model binaries — re-trainable from scripts/
 # ─────────────────────────────────────────────
 *.pkl
-models/*.json
+# models/*.json
 
 # ─────────────────────────────────────────────
 # ✅ What TO Commit (for reference)
