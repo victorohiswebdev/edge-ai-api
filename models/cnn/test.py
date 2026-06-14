@@ -15,6 +15,11 @@ Output:
        healthy    0.943  ★
        stressed   0.041
        wilted     0.016
+
+Preprocessing:
+  - Resize to 224×224 (LANCZOS)
+  - Convert to float32 (raw [0, 255] — model handles normalization internally)
+  - Batch dimension added
 """
 
 import argparse
@@ -93,9 +98,9 @@ def load_and_preprocess(image_path: str) -> np.ndarray:
     # Resize maintaining the training dimensions
     img = img.resize((IMG_SIZE, IMG_SIZE), Image.LANCZOS)
 
-    # Convert to numpy float32 and normalize to [-1, 1]
+    # Convert to numpy float32 — keep raw [0, 255] range
+    # The TFLite model has Rescaling(scale=1/127.5, offset=-1) built in
     arr = np.array(img, dtype=np.float32)
-    arr = arr / 127.5 - 1.0  # matches Rescaling(scale=1/127.5, offset=-1)
 
     # Add batch dimension: (224, 224, 3) → (1, 224, 224, 3)
     arr = np.expand_dims(arr, axis=0)
