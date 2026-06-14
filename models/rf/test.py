@@ -159,7 +159,7 @@ def main():
     parser.add_argument("--days_since_watered", type=float, default=None)
     parser.add_argument("--zone", type=int, default=None)
     parser.add_argument("--threshold", type=float, default=35.0,
-                        help="Irrigation threshold % (default: 35.0)")
+                        help="Irrigation threshold %% (default: 35.0)")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Only output predicted moisture value")
     parser.add_argument("--verbose", "-v", action="store_true",
