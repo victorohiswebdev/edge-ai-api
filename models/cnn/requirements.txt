@@ -3,6 +3,7 @@
 #   pip install -r models/cnn/requirements.txt
 
 tensorflow>=2.13
+tensorboard          # required on Windows — TF doesn't auto-pull it
 numpy
 pillow
 matplotlib
