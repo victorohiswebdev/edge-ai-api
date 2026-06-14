@@ -2,14 +2,22 @@
 """
 test.py — Run RF inference from the command line with sensor values.
 
+Model expects 9 features: moisture_t_1, moisture_t_2, moisture_t_3,
+temp_c, humidity_pct, vpd_kpa, hour, days_since_watered, zone
+
 Usage:
+    # Named args (vpd_kpa optional — auto-calculated from temp + humidity)
     python3 models/rf/test.py \\
         --moisture_t_1 34.2 --moisture_t_2 35.1 --moisture_t_3 36.0 \\
         --temp_c 30.2 --humidity_pct 66.5 --hour 14 \\
         --days_since_watered 2.3 --zone 1
 
-    # Short form (positional)
-    python3 models/rf/test.py 34.2 35.1 36.0 30.2 66.5 14 2.3 1
+    # Positional shorthand (9 values)
+    python3 models/rf/test.py \\
+        34.2 35.1 36.0 30.2 66.5 1.23 14 2.3 1
+
+    # Quiet mode (just predicted moisture %)
+    python3 models/rf/test.py ... -q
 
 Output:
     🌲 RF Irrigation Model — Inference
@@ -21,9 +29,10 @@ Output:
       moisture_t_3       36.00
       temp_c             30.20
       humidity_pct       66.50
+      vpd_kpa             1.23
       hour               14.00
       days_since_watered  2.30
-      zone                1
+      zone                1.00
 
     Predicted moisture:  31.8%
     Should irrigate?     YES
@@ -35,9 +44,11 @@ import sys
 import numpy as np
 from pathlib import Path
 
+# ── Model feature contract ─────────────────────────────────────────
+# The RF was trained on these 9 features in this exact order
 FEATURE_NAMES = [
     "moisture_t_1", "moisture_t_2", "moisture_t_3",
-    "temp_c", "humidity_pct",
+    "temp_c", "humidity_pct", "vpd_kpa",
     "hour", "days_since_watered", "zone",
 ]
 
@@ -52,13 +63,7 @@ except ImportError:
 def find_model() -> str:
     """Auto-detect the latest RF model in models/rf/."""
     script_dir = Path(__file__).resolve().parent
-    # Look for .pkl files in models/rf/ (relative to repo root) and script dir
     candidates = list(script_dir.glob("rf_model*.pkl"))
-    if not candidates:
-        # Try repo root path
-        repo_models = script_dir / "models"
-        if repo_models.exists():
-            candidates = list(repo_models.glob("rf_model*.pkl"))
     if not candidates:
         candidates = list(script_dir.glob("*.pkl"))
     if not candidates:
@@ -69,40 +74,27 @@ def find_model() -> str:
 
 
 def load_model(model_path: str):
-    """Load a joblib RF model."""
     path = Path(model_path)
     if not path.exists():
         print(f"❌ Model not found: {path.resolve()}")
         sys.exit(1)
+    return joblib.load(path)
 
-    model = joblib.load(path)
-    return model
+
+def calc_vpd(temp_c: float, humidity_pct: float) -> float:
+    """Calculate Vapour Pressure Deficit in kPa.
+
+    Formula mirrors generate_data.py:calc_vpd().
+    """
+    es = 0.61078 * np.exp((17.27 * temp_c) / (temp_c + 237.3))
+    vpd = (1 - humidity_pct / 100) * es
+    return round(max(vpd, 0.05), 3)
 
 
 def predict(model, features: dict) -> float:
-    """Run prediction from a dict of feature values.
-
-    Order must match: moisture_t_1, moisture_t_2, moisture_t_3,
-    temp_c, humidity_pct, hour, days_since_watered, zone
-    """
-    # Note: vpd_kpa is NOT in our CLI — the model's feature set
-    # includes it, but the Pi-optimised model was trained with/without.
-    # We only pass the 9 features from the original model.
-    # Actually — check what features the model expects.
-
-    # Build feature vector in the right order
-    feature_vector = np.array([[
-        features["moisture_t_1"],
-        features["moisture_t_2"],
-        features["moisture_t_3"],
-        features["temp_c"],
-        features["humidity_pct"],
-        features["hour"],
-        features["days_since_watered"],
-        features["zone"],
-    ]])
-
-    predicted = model.predict(feature_vector)
+    """Run prediction — builds 9-feature vector in model-trained order."""
+    vector = np.array([[features[name] for name in FEATURE_NAMES]])
+    predicted = model.predict(vector)
     return round(float(predicted[0]), 1)
 
 
@@ -111,19 +103,17 @@ def format_output(model_path: str, features: dict, predicted: float,
     """Print a clean inference result."""
     print()
     print("🌲 RF Irrigation Model — Inference")
-    print("─" * 50)
-    print(f"  Model:          {Path(model_path).name}")
+    print("─" * 55)
+    print(f"  Model:   {Path(model_path).name}")
     print()
     print("  Features:")
     for name in FEATURE_NAMES:
-        if name in ("vpd_kpa",):
-            continue
         val = features.get(name, 0)
         print(f"    {name:20s}  {val:>8.2f}")
     print()
     print(f"  Predicted moisture:  {predicted:.1f}%")
 
-    # Decision logic (mirrors model.should_irrigate)
+    # Decision logic (mirrors IrrigationModel.should_irrigate)
     moisture_current = features.get("moisture_t_1", 0)
     reasons = []
     if moisture_current < threshold:
@@ -149,7 +139,6 @@ def main():
         description="Run RF irrigation inference from sensor values."
     )
 
-    # Named arguments
     parser.add_argument("--model", "-m", default=None,
                         help="Path to .pkl model file")
     parser.add_argument("--moisture_t_1", type=float, default=None)
@@ -157,6 +146,8 @@ def main():
     parser.add_argument("--moisture_t_3", type=float, default=None)
     parser.add_argument("--temp_c", type=float, default=None)
     parser.add_argument("--humidity_pct", type=float, default=None)
+    parser.add_argument("--vpd_kpa", type=float, default=None,
+                        help="Vapour Pressure Deficit (auto-calculated from temp+humidity if omitted)")
     parser.add_argument("--hour", type=float, default=None)
     parser.add_argument("--days_since_watered", type=float, default=None)
     parser.add_argument("--zone", type=int, default=None)
@@ -165,36 +156,43 @@ def main():
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Only output predicted moisture value")
 
-    # Also accept short positional form
+    # Positional shorthand
     parser.add_argument("pos_args", nargs="*", help=argparse.SUPPRESS)
 
     args = parser.parse_args()
 
     # ── Collect features ──
     features = {}
-    named = {
-        "moisture_t_1": args.moisture_t_1,
-        "moisture_t_2": args.moisture_t_2,
-        "moisture_t_3": args.moisture_t_3,
-        "temp_c": args.temp_c,
-        "humidity_pct": args.humidity_pct,
-        "hour": args.hour,
-        "days_since_watered": args.days_since_watered,
-        "zone": args.zone,
-    }
 
-    # If positional args provided (short form)
-    if args.pos_args and len(args.pos_args) >= 8:
-        pos_values = list(map(float, args.pos_args[:8]))
+    if args.pos_args and len(args.pos_args) >= 9:
+        # Positional: 9 values in order
+        pos_values = list(map(float, args.pos_args[:9]))
         for i, name in enumerate(FEATURE_NAMES):
             features[name] = pos_values[i]
     else:
-        # Use named args
+        # Named args
+        named = {
+            "moisture_t_1": args.moisture_t_1,
+            "moisture_t_2": args.moisture_t_2,
+            "moisture_t_3": args.moisture_t_3,
+            "temp_c": args.temp_c,
+            "humidity_pct": args.humidity_pct,
+            "vpd_kpa": args.vpd_kpa,
+            "hour": args.hour,
+            "days_since_watered": args.days_since_watered,
+            "zone": args.zone,
+        }
         for name, val in named.items():
             if val is not None:
                 features[name] = val
 
-    # Validate
+    # ── Auto-calculate vpd_kpa if temp_c + humidity_pct provided ──
+    if "vpd_kpa" not in features and "temp_c" in features and "humidity_pct" in features:
+        features["vpd_kpa"] = calc_vpd(features["temp_c"], features["humidity_pct"])
+        if not args.quiet:
+            print(f"   vpd_kpa auto-calculated: {features['vpd_kpa']:.3f}")
+
+    # ── Validate ──
     missing = [n for n in FEATURE_NAMES if n not in features]
     if missing:
         print(f"❌ Missing features: {', '.join(missing)}")
