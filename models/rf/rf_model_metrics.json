@@ -1,0 +1,20 @@
+{
+  "n_samples": 44982,
+  "n_features": 9,
+  "n_estimators": 100,
+  "max_depth": 12,
+  "test_mae": 3.389,
+  "test_rmse": 7.062,
+  "test_r2": 0.9145,
+  "feature_importance": {
+    "moisture_t_1": 0.8906,
+    "days_since_watered": 0.0401,
+    "moisture_t_2": 0.0338,
+    "moisture_t_3": 0.0187,
+    "zone": 0.008,
+    "hour": 0.003,
+    "humidity_pct": 0.0025,
+    "temp_c": 0.0017,
+    "vpd_kpa": 0.0016
+  }
+}

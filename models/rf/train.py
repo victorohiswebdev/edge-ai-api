@@ -5,8 +5,8 @@ train.py — Train + validate + export the Random Forest irrigation model
 Run this AFTER generate_data.py has created training_data_features.csv.
 
 Usage:
-    python3 models/rf/train.py [--data models/rf/training_data_features.csv]
-                               [--output models/rf/rf_model.pkl]
+    python3 models/rf/train.py [--data training_data_features.csv]
+                               [--output rf_model.pkl]
                                [--trees 100] [--depth 12]
 """
 
@@ -24,8 +24,8 @@ import joblib
 
 
 def train_model(
-    data_path="models/rf/training_data_features.csv",
-    model_output="models/rf/rf_model.pkl",
+    data_path="training_data_features.csv",
+    model_output="rf_model.pkl",
     n_estimators=100,
     max_depth=12,
     test_size=0.2,
@@ -139,9 +139,9 @@ def train_model(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train RF irrigation model")
-    parser.add_argument("--data", default="models/rf/training_data_features.csv",
+    parser.add_argument("--data", default="training_data_features.csv",
                         help="Path to feature CSV")
-    parser.add_argument("--output", default="models/rf/rf_model.pkl",
+    parser.add_argument("--output", default="rf_model.pkl",
                         help="Output model path")
     parser.add_argument("--trees", type=int, default=100,
                         help="Number of trees")
