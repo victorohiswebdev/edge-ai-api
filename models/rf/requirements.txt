@@ -1,0 +1,10 @@
+# ── RF Training Dependencies ──────────────────────────────────────────────
+# Install on your PC (not on the Pi):
+#   pip install -r models/rf/requirements.txt
+#
+# The Pi only needs joblib + numpy for inference (via model.py).
+
+scikit-learn>=1.3
+pandas
+numpy
+joblib

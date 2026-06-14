@@ -79,6 +79,11 @@ models/cnn/dataset/
 # Saved models, checkpoints, logs, plots
 models/cnn/models/
 
+# ── RF Training artifacts (re-trainable) ──
+# Synthetic training data (regenerated with generate_data.py)
+models/rf/training_data*.csv
+# Model binaries + metrics covered by *.pkl and models/*.json below
+
 # ─────────────────────────────────────────────
 # Model binaries — re-trainable from scripts/
 # ─────────────────────────────────────────────

@@ -12,7 +12,7 @@ Zones have different watering regimes:
   Zone 3 (AI):       variable threshold (simulates model-based decisions)
 
 Usage:
-    python3 models/generate_data.py --samples 10000 --interval 5 --output data.csv
+    python3 models/rf/generate_data.py --samples 10000 --interval 5 --output data.csv
 """
 
 import argparse
@@ -282,7 +282,7 @@ def main():
                         help="Time step in minutes (default: 5)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed")
-    parser.add_argument("--output", default="models/training_data.csv",
+    parser.add_argument("--output", default="models/rf/training_data.csv",
                         help="Output CSV path")
     args = parser.parse_args()
 

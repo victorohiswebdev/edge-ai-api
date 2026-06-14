@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-rf_model.py — Lightweight inference module for Raspberry Pi deployment.
+model.py — Lightweight inference module for Raspberry Pi deployment.
 
 Loads the trained Random Forest model and provides a predict() function
 that returns predicted moisture N steps ahead.
 
 Usage on Pi:
-    from models.rf_model import IrrigationModel
+    from models.rf.model import IrrigationModel
 
-    model = IrrigationModel("models/rf_model.pkl")
+    model = IrrigationModel("models/rf/rf_model.pkl")
     prediction = model.predict(
         moisture_t_1=34.2, moisture_t_2=35.1, moisture_t_3=36.0,
         temp_c=30.2, humidity_pct=66.5, vpd_kpa=1.2,
@@ -95,7 +95,7 @@ class IrrigationModel:
 
 if __name__ == "__main__":
     import sys
-    model_path = sys.argv[1] if len(sys.argv) > 1 else "models/rf_model.pkl"
+    model_path = sys.argv[1] if len(sys.argv) > 1 else "models/rf/rf_model.pkl"
 
     print(f"🌲 Loading model from {model_path}...")
     model = IrrigationModel(model_path)
