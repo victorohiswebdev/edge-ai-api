@@ -101,6 +101,10 @@ def predict(model, features: dict, verbose: bool = False) -> float:
         print(f"  🔍 Vector shape: {vector.shape}")
         import sklearn
         print(f"  🔍 sklearn version: {sklearn.__version__}")
+        if hasattr(model, "feature_names_in_"):
+            print(f"  🔍 Model feature_names_in_: {list(model.feature_names_in_)}")
+        if hasattr(model, "n_features_in_"):
+            print(f"  🔍 Model n_features_in_: {model.n_features_in_}")
     predicted = model.predict(vector)
     return round(float(predicted[0]), 1)
 
