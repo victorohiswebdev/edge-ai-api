@@ -61,7 +61,7 @@ except ImportError:
 
 
 def find_model() -> str:
-    """Auto-detect the latest RF model in models/rf/."""
+    """Auto-detect the most recently trained model in models/rf/."""
     script_dir = Path(__file__).resolve().parent
     candidates = list(script_dir.glob("rf_model*.pkl"))
     if not candidates:
@@ -70,7 +70,9 @@ def find_model() -> str:
         print(f"❌ No .pkl model found in {script_dir}/")
         print("   Specify one with --model /path/to/model.pkl")
         sys.exit(1)
-    return str(sorted(candidates)[-1])  # latest by name
+    # Prefer the most recently modified file (likely the freshly trained one)
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return str(candidates[0])
 
 
 def load_model(model_path: str):
@@ -91,9 +93,14 @@ def calc_vpd(temp_c: float, humidity_pct: float) -> float:
     return round(max(vpd, 0.05), 3)
 
 
-def predict(model, features: dict) -> float:
+def predict(model, features: dict, verbose: bool = False) -> float:
     """Run prediction — builds 9-feature vector in model-trained order."""
     vector = np.array([[features[name] for name in FEATURE_NAMES]])
+    if verbose:
+        print(f"\n  🔍 Raw feature vector: {vector}")
+        print(f"  🔍 Vector shape: {vector.shape}")
+        import sklearn
+        print(f"  🔍 sklearn version: {sklearn.__version__}")
     predicted = model.predict(vector)
     return round(float(predicted[0]), 1)
 
@@ -155,6 +162,8 @@ def main():
                         help="Irrigation threshold % (default: 35.0)")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Only output predicted moisture value")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Show raw feature vector and sklearn version for debugging")
 
     # Positional shorthand
     parser.add_argument("pos_args", nargs="*", help=argparse.SUPPRESS)
@@ -207,7 +216,7 @@ def main():
     model = load_model(model_path)
 
     # ── Predict ──
-    predicted = predict(model, features)
+    predicted = predict(model, features, args.verbose)
 
     # ── Output ──
     if args.quiet:
