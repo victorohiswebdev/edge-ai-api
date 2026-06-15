@@ -20,6 +20,47 @@ from database import get_db
 from schemas import IrrigationPrediction, IrrigationStatus
 from models.rf.model import IrrigationModel
 
+# ─── CNN Override Constants ─────────────────────────────────────────
+
+# Decision matrix for RF + CNN combined irrigation logic:
+#   RF says          CNN says     | Final action
+#   ─────────────────────────────────────────────
+#   Irrigate         Healthy      | Irrigate (no override)
+#   Don't irrigate   Healthy      | Don't irrigate (no override)
+#   Irrigate         Stressed     | DON'T irrigate (plant can't uptake)
+#   Don't irrigate   Stressed     | Alert: manual check
+#   Irrigate         Wilted       | DON'T irrigate
+#   Don't irrigate   Wilted       | Alert: manual check
+
+FINAL_IRRIGATE = "irrigate"
+FINAL_DONT = "dont_irrigate"
+FINAL_ALERT = "manual_check"
+
+RF_YES = True
+RF_NO = False
+
+
+def _apply_override(rf_should_irrigate: bool, cnn_class: str | None) -> tuple:
+    """Apply the decision matrix. Returns (final_action, reason, was_overridden)."""
+    if cnn_class is None or cnn_class == "healthy":
+        # No override — RF decision stands
+        if rf_should_irrigate:
+            return (FINAL_IRRIGATE, "Predicted moisture below threshold, plant healthy", False)
+        return (FINAL_DONT, "Moisture stable, plant healthy", False)
+
+    if cnn_class == "stressed":
+        if rf_should_irrigate:
+            return (FINAL_DONT, f"🔴 OVERRIDE: RF says irrigate but plant is stressed — cannot uptake water effectively", True)
+        return (FINAL_ALERT, f"⚠️ Plant stressed — manual inspection recommended", True)
+
+    if cnn_class == "wilted":
+        if rf_should_irrigate:
+            return (FINAL_DONT, f"🔴 OVERRIDE: RF says irrigate but plant is wilted — cannot uptake water", True)
+        return (FINAL_ALERT, f"⚠️ Plant wilted — manual inspection recommended", True)
+
+    # Fallback
+    return (FINAL_IRRIGATE if rf_should_irrigate else FINAL_DONT, "RF decision (CNN class unknown)", False)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -240,3 +281,118 @@ def irrigation_status():
         features=model.feature_names,
         n_features=len(model.feature_names),
     )
+
+
+@router.get("/irrigation/integrated-decision")
+def integrated_irrigation_decision(db: Connection = Depends(get_db)):
+    """Combined RF + CNN irrigation decision with override logic.
+
+    1. Runs RF prediction on latest sensor data (same as /predict)
+    2. Fetches latest CNN plant health classification
+    3. Applies override decision matrix
+    4. Returns final action per zone
+
+    The CNN overrides the RF when plant stress/wilt is detected —
+    stressed plants cannot uptake water effectively, so irrigation
+    is suppressed until the plant recovers.
+    """
+    # ── Step 1: Get RF predictions ──
+    try:
+        model = get_model()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    cursor = db.cursor()
+    readings = get_latest_readings(cursor)
+    if readings is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No sensor data available. Ensure data_logger is running.",
+        )
+
+    if readings["temperature_c"] is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Temperature/humidity data required.",
+        )
+
+    temp_c = float(readings["temperature_c"])
+    humidity_pct = float(readings["humidity_perc"])
+    vpd_kpa = calc_vpd(temp_c, humidity_pct)
+    hour = datetime.now().hour
+
+    # ── Step 2: Get latest CNN classification ──
+    latest_cnn = None
+    try:
+        cursor.execute(
+            "SELECT classification, confidence FROM plant_health_log ORDER BY id DESC LIMIT 1"
+        )
+        cnn_row = cursor.fetchone()
+        if cnn_row:
+            latest_cnn = {
+                "classification": cnn_row["classification"],
+                "confidence": cnn_row["confidence"],
+            }
+    except Exception:
+        pass  # Table may not exist yet
+
+    # ── Step 3: Per-zone integrated decision ──
+    results = []
+    for zone in (1, 2, 3):
+        moisture_t_1 = readings.get(f"moisture_t_{zone}_1", 0) or 0
+        moisture_t_2 = readings.get(f"moisture_t_{zone}_2", 0) or 0
+        moisture_t_3 = readings.get(f"moisture_t_{zone}_3", 0) or 0
+        days_since_watered = get_days_since_watered(cursor, zone)
+
+        predicted = model.predict(
+            moisture_t_1=float(moisture_t_1),
+            moisture_t_2=float(moisture_t_2),
+            moisture_t_3=float(moisture_t_3),
+            temp_c=temp_c,
+            humidity_pct=humidity_pct,
+            vpd_kpa=vpd_kpa,
+            hour=float(hour),
+            days_since_watered=days_since_watered,
+            zone=zone,
+        )
+
+        should_water, rf_reason = model.should_irrigate(
+            moisture_current=float(moisture_t_1),
+            predicted=predicted,
+        )
+
+        # Apply CNN override
+        cnn_class = latest_cnn["classification"] if latest_cnn else None
+        final_action, final_reason, was_overridden = _apply_override(
+            should_water, cnn_class
+        )
+
+        zone_result = {
+            "zone": zone,
+            "current_moisture": float(moisture_t_1),
+            "predicted_moisture": predicted,
+            "threshold": 35.0,
+            "days_since_watered": days_since_watered,
+            "rf_decision": {
+                "should_irrigate": should_water,
+                "reason": rf_reason,
+            },
+            "plant_health": latest_cnn or {"classification": None, "confidence": None, "available": False},
+            "override_applied": was_overridden,
+            "final_action": final_action,
+            "final_reason": final_reason,
+        }
+
+        results.append(zone_result)
+
+    return {
+        "status": "ok",
+        "timestamp": readings["timestamp"],
+        "environment": {
+            "temperature_c": temp_c,
+            "humidity_pct": humidity_pct,
+            "vpd_kpa": vpd_kpa,
+            "hour": hour,
+        },
+        "integrated_decisions": results,
+    }
