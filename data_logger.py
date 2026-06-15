@@ -90,6 +90,23 @@ def setup_database(db_path):
             updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS irrigation_decisions (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp           DATETIME DEFAULT CURRENT_TIMESTAMP,
+            zone                INTEGER NOT NULL CHECK(zone BETWEEN 1 AND 3),
+            current_moisture    REAL,
+            predicted_moisture  REAL,
+            threshold           REAL DEFAULT 35.0,
+            should_irrigate     INTEGER,
+            reason              TEXT,
+            days_since_watered  REAL,
+            temperature_c       REAL,
+            humidity_pct        REAL,
+            vpd_kpa             REAL,
+            hour                INTEGER
+        )
+    """)
     conn.commit()
     return conn
 

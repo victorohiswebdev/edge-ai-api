@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
 from config import settings
-from routes import sensors, ingest, system, pumps, camera
+from routes import sensors, ingest, system, pumps, camera, irrigation
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.include_router(ingest.router, prefix="/api/v1", tags=["Ingest"])
 app.include_router(system.router, prefix="/api/v1", tags=["System"])
 app.include_router(pumps.router, prefix="/api/v1", tags=["Pumps"])
 app.include_router(camera.router, prefix="/api/v1", tags=["Camera"])
+app.include_router(irrigation.router, prefix="/api/v1", tags=["Irrigation"])
 
 
 # ── Root — Health check ──

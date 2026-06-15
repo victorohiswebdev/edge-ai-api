@@ -73,18 +73,44 @@ class IrrigationModel:
                          threshold: float = 35.0) -> tuple:
         """Decision logic: should we water this zone?
 
+        Bases the decision on the model's PREDICTION, not on the
+        raw input feature. The model forecasts natural (no-intervention)
+        moisture trajectory.
+
         Returns (should_water, reason).
         """
-        if moisture_current < threshold:
-            return (True, f"Current moisture ({moisture_current:.0f}%) below threshold ({threshold}%)")
-
         if predicted < threshold:
             return (True, f"Predicted moisture ({predicted:.0f}%) will drop below threshold ({threshold}%)")
+
+        if moisture_current > predicted and (moisture_current - predicted) > 5:
+            return (True, f"Moisture declining ({moisture_current:.0f}% → {predicted:.0f}%)")
 
         if predicted < moisture_current * 0.8:
             return (True, f"Sharp decline predicted ({moisture_current:.0f}% → {predicted:.0f}%)")
 
         return (False, "Moisture stable, no action needed")
+
+    def get_model_info(self) -> dict:
+        """Return model metadata for diagnostics."""
+        from sklearn.ensemble import RandomForestRegressor
+        info = {
+            "type": type(self.model).__name__,
+            "features": self.feature_names,
+            "n_features": len(self.feature_names),
+        }
+        if hasattr(self.model, "n_estimators"):
+            info["n_estimators"] = self.model.n_estimators
+        if hasattr(self.model, "max_depth"):
+            info["max_depth"] = self.model.max_depth
+        if hasattr(self.model, "feature_importances_"):
+            importances = sorted(
+                zip(self.feature_names, self.model.feature_importances_),
+                key=lambda x: x[1], reverse=True,
+            )
+            info["feature_importances"] = {
+                feat: round(imp, 4) for feat, imp in importances
+            }
+        return info
 
     def __repr__(self):
         n_estimators = getattr(self.model, "n_estimators", "?")

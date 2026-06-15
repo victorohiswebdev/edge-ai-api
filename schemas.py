@@ -96,3 +96,34 @@ class EmergencyStopResponse(BaseModel):
     """Response after emergency all-off."""
     success: bool
     message: str
+
+
+# ─── AI / Irrigation Models ───
+
+
+class IrrigationPrediction(BaseModel):
+    """Single-zone RF prediction result."""
+    zone: int
+    current_moisture: float
+    predicted_moisture: float
+    threshold: float = 35.0
+    should_irrigate: bool
+    reason: str
+    days_since_watered: float
+
+
+class IrrigationResponse(BaseModel):
+    """Full response from /irrigation/predict endpoint."""
+    status: str
+    timestamp: datetime
+    environment: dict
+    predictions: list[IrrigationPrediction]
+
+
+class IrrigationStatus(BaseModel):
+    """Irrigation model metadata."""
+    model_loaded: bool
+    model_name: str
+    features: list[str]
+    n_features: int
+    message: str = ""
