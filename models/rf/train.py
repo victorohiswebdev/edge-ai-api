@@ -24,8 +24,8 @@ import joblib
 
 
 def train_model(
-    data_path="/models/rf/training_data_features.csv",
-    model_output="/models/rf/rf_model.pkl",
+    data_path="models/rf/training_data_features.csv",
+    model_output="models/rf/rf_model.pkl",
     n_estimators=100,
     max_depth=12,
     test_size=0.2,
@@ -139,9 +139,9 @@ def train_model(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train RF irrigation model")
-    parser.add_argument("--data", default="/models/rf/training_data_features.csv",
+    parser.add_argument("--data", default="models/rf/training_data_features.csv",
                         help="Path to feature CSV")
-    parser.add_argument("--output", default="/models/rf/rf_model.pkl",
+    parser.add_argument("--output", default="models/rf/rf_model.pkl",
                         help="Output model path")
     parser.add_argument("--trees", type=int, default=100,
                         help="Number of trees")

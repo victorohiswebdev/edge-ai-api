@@ -124,13 +124,16 @@ def format_output(model_path: str, features: dict, predicted: float,
     print()
     print(f"  Predicted moisture:  {predicted:.1f}%")
 
-    # Decision logic (mirrors IrrigationModel.should_irrigate)
+    # Decision logic — based on model PREDICTION, not input features.
+    # The model predicts natural (no-intervention) moisture N steps ahead.
+    # If natural moisture will drop below threshold → irrigate proactively.
+    # moisture_t_1 is a lagged INPUT feature, NOT current moisture level.
     moisture_current = features.get("moisture_t_1", 0)
     reasons = []
-    if moisture_current < threshold:
-        reasons.append(f"Current moisture ({moisture_current:.0f}%) below threshold ({threshold}%)")
     if predicted < threshold:
         reasons.append(f"Predicted moisture ({predicted:.0f}%) will drop below threshold ({threshold}%)")
+    if moisture_current > predicted and (moisture_current - predicted) > 5:
+        reasons.append(f"Moisture declining ({moisture_current:.0f}% → {predicted:.0f}%)")
     if predicted < moisture_current * 0.8:
         reasons.append(f"Sharp decline predicted ({moisture_current:.0f}% → {predicted:.0f}%)")
 
