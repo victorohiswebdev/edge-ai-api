@@ -127,3 +127,25 @@ class IrrigationStatus(BaseModel):
     features: list[str]
     n_features: int
     message: str = ""
+
+
+# ─── Plant Health Models ───
+
+
+class PlantHealthResult(BaseModel):
+    """A single plant health classification result."""
+    id: int
+    timestamp: datetime
+    image_path: str
+    classification: str
+    confidence: float
+    probabilities: dict
+
+
+class PlantHealthStatus(BaseModel):
+    """TFLite classifier metadata."""
+    model_loaded: bool
+    model_name: str
+    classes: list[str]
+    input_shape: str = ""
+    message: str = ""

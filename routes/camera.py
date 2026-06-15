@@ -3,10 +3,15 @@
 import os
 import subprocess
 import glob
+import json
+import logging
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from datetime import datetime
+from database import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -48,6 +53,26 @@ def take_snapshot():
             raise HTTPException(500, "Camera produced no output file")
 
         stat = os.stat(path)
+        # ── Auto-classify after capture ──
+        classification_result = None
+        try:
+            from models.cnn.model import get_classifier
+            clf = get_classifier()
+            pred = clf.predict(path)
+            # Store in plant_health_log
+            conn = get_db().__next__()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO plant_health_log (image_path, classification, confidence, probabilities) VALUES (?, ?, ?, ?)",
+                (path, pred["class"], pred["confidence"], json.dumps(pred["probabilities"])),
+            )
+            conn.commit()
+            conn.close()
+            classification_result = pred
+            logger.info(f"🌱 Classified {os.path.basename(path)}: {pred['class']} ({pred['confidence']:.1%})")
+        except Exception as e:
+            logger.warning(f"Auto-classify skipped: {e}")
+
         return FileResponse(
             path,
             media_type="image/jpeg",
@@ -56,6 +81,9 @@ def take_snapshot():
                 "X-Capture-Filename": os.path.basename(path),
                 "X-Capture-Size": str(stat.st_size),
                 "X-Capture-Timestamp": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                **({"X-Classification": classification_result["class"],
+                    "X-Confidence": str(classification_result["confidence"])}
+                   if classification_result else {}),
             },
         )
     except subprocess.TimeoutExpired:

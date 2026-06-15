@@ -88,5 +88,15 @@ def init_db():
             hour                INTEGER
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS plant_health_log (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp       DATETIME DEFAULT CURRENT_TIMESTAMP,
+            image_path      TEXT,
+            classification  TEXT,
+            confidence      REAL,
+            probabilities   TEXT
+        )
+    """)
     conn.commit()
     conn.close()
