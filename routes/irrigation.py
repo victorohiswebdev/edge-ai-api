@@ -332,6 +332,7 @@ def integrated_irrigation_decision(db: Connection = Depends(get_db)):
             latest_cnn = {
                 "classification": cnn_row["classification"],
                 "confidence": cnn_row["confidence"],
+                "available": True,
             }
     except Exception:
         pass  # Table may not exist yet

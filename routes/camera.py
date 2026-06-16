@@ -1,6 +1,7 @@
 """Camera endpoints — capture snapshots and list recent captures."""
 
 import os
+import sqlite3
 import subprocess
 import glob
 import json
@@ -9,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from datetime import datetime
-from database import get_db
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +56,14 @@ def take_snapshot():
         stat = os.stat(path)
         # ── Auto-classify after capture ──
         classification_result = None
+        classification_error = None
         try:
             from models.cnn.model import get_classifier
             clf = get_classifier()
             pred = clf.predict(path)
-            # Store in plant_health_log
-            conn = get_db().__next__()
+
+            # Direct DB connection (avoids FastAPI dependency generator)
+            conn = sqlite3.connect(settings.database_url)
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO plant_health_log (image_path, classification, confidence, probabilities) VALUES (?, ?, ?, ?)",
@@ -71,20 +74,26 @@ def take_snapshot():
             classification_result = pred
             logger.info(f"🌱 Classified {os.path.basename(path)}: {pred['class']} ({pred['confidence']:.1%})")
         except Exception as e:
-            logger.warning(f"Auto-classify skipped: {e}")
+            classification_error = str(e)
+            logger.warning(f"🌱 Auto-classify skipped: {classification_error}")
+
+        headers = {
+            "X-Capture-Filename": os.path.basename(path),
+            "X-Capture-Size": str(stat.st_size),
+            "X-Capture-Timestamp": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        }
+
+        if classification_result:
+            headers["X-Classification"] = classification_result["class"]
+            headers["X-Confidence"] = str(classification_result["confidence"])
+        elif classification_error:
+            headers["X-Classification-Error"] = classification_error
 
         return FileResponse(
             path,
             media_type="image/jpeg",
             filename=os.path.basename(path),
-            headers={
-                "X-Capture-Filename": os.path.basename(path),
-                "X-Capture-Size": str(stat.st_size),
-                "X-Capture-Timestamp": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                **({"X-Classification": classification_result["class"],
-                    "X-Confidence": str(classification_result["confidence"])}
-                   if classification_result else {}),
-            },
+            headers=headers,
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(504, "Camera capture timed out (15s)")

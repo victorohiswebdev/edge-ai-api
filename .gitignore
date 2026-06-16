@@ -74,21 +74,17 @@ data/processed/
 *.db
 
 # ── CNN Training artifacts (re-trainable) ──
-# Dataset — download/extract separately (265 MB tar.gz)
 models/cnn/dataset/
-# Saved models, checkpoints, logs, plots
-# models/cnn/models/
+# models/cnn/models/  — TFLite model, committed for deployment
 
 # ── RF Training artifacts (re-trainable) ──
-# Synthetic training data (regenerated with generate_data.py)
 models/rf/training_data*.csv
-# Model binaries + metrics covered by *.pkl and models/*.json below
 
 # ─────────────────────────────────────────────
 # Model binaries — re-trainable from scripts/
 # ─────────────────────────────────────────────
-# *.pkl
-# models/*.json
+*.pkl
+models/*.json
 
 # ─────────────────────────────────────────────
 # ✅ What TO Commit (for reference)
@@ -98,3 +94,5 @@ models/rf/training_data*.csv
 # ✔️ README.md, LICENSE
 # ✔️ .gitignore (this file!)
 # ✔️ config templates (e.g., .env.example)
+# ✔️ models/cnn/models/*.tflite — deployment artifact
+# ✔️ models/rf/rf_model_pi.pkl — deployment artifact
